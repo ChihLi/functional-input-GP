@@ -1,4 +1,5 @@
 library(randtoolbox)
+library(R.matlab)
 library(cubature)
 library(plgp)
 source("sepGP.R")               # FIGP with linear kernel
