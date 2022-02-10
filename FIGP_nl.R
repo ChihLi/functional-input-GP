@@ -1,4 +1,6 @@
-sepGP_nl <- function(G, d, y, nu, nug, rnd=1e5){
+# FIGP with nonlinear kernel
+FIGP_nl <- function(G, d, y, nu, nug, rnd=1e5,
+                     init=1, lower=1e-2, upper=100){
   
   n <- length(y)
   nlsep <- function(par, G, d, Y, rnd) 
@@ -11,7 +13,7 @@ sepGP_nl <- function(G, d, y, nu, nug, rnd=1e5){
     A <- matrix(0,ncol=n,nrow=rnd)
     for(i in 1:n)  A[,i] <- apply(X, 1, G[[i]])
 
-    R <- sqrt(distance(t(A)/theta))
+    R <- sqrt(distance(t(A)/theta)/rnd)
     K <- matern.kernel(R, nu=nu)
   
     Ki <- solve(K+diag(nug,n))
@@ -25,8 +27,8 @@ sepGP_nl <- function(G, d, y, nu, nug, rnd=1e5){
   
   tic <- proc.time()[3]
   
-  outg <- optim(1e2, nlsep,
-                method="L-BFGS-B", lower=1, upper=1e5, G=G, Y=y, d=d, rnd=rnd)
+  outg <- optim(init, nlsep,
+                method="L-BFGS-B", lower=lower, upper=upper, G=G, Y=y, d=d, rnd=rnd)
   toc <- proc.time()[3]
   
   theta <- outg$par
@@ -35,18 +37,18 @@ sepGP_nl <- function(G, d, y, nu, nug, rnd=1e5){
   A <- matrix(0,ncol=n,nrow=rnd)
   for(i in 1:n)  A[,i] <- apply(X, 1, G[[i]])
   
-  R <- sqrt(distance(t(A)/theta))
+  R <- sqrt(distance(t(A)/theta)/rnd)
   K <- matern.kernel(R, nu=nu)
   
   Ki <- solve(K+diag(nug,n))
   one.vec <- matrix(1,ncol=1,nrow=n)
   mu.hat <- drop((t(one.vec)%*%Ki%*%y)/(t(one.vec)%*%Ki%*%one.vec))
   
-  return(list(theta = theta, nu=nu, Ki=Ki,
+  return(list(theta = theta, nu=nu, Ki=Ki, A=A,
               nug = nug, G = G, y = y, X = X, rnd = rnd, mu.hat=mu.hat))
 }
 
-pred.sepGP_nl <- function(fit, gnew){
+pred.FIGP_nl <- function(fit, gnew, sig2.fg=TRUE){
   
   Ki <- fit$Ki
   theta <- fit$theta
@@ -55,6 +57,7 @@ pred.sepGP_nl <- function(fit, gnew){
   G <- fit$G
   X <- fit$X
   y <- fit$y
+  A <- fit$A
   rnd <- fit$rnd
   mu.hat <- fit$mu.hat
   
@@ -62,20 +65,25 @@ pred.sepGP_nl <- function(fit, gnew){
   n.new <- length(gnew)
   
 
-  A <- matrix(0,ncol=n,nrow=rnd)
-  for(i in 1:n)  A[,i] <- apply(X, 1, G[[i]])
+  # A <- matrix(0,ncol=n,nrow=rnd)
+  # for(i in 1:n)  A[,i] <- apply(X, 1, G[[i]])
   a <- matrix(0,ncol=n.new,nrow=rnd)
   for(i in 1:n.new)  a[,i] <- apply(X, 1, gnew[[i]])
   
-  RX <- sqrt(distance(t(a)/theta,t(A)/theta))
+  RX <- sqrt(distance(t(a)/theta,t(A)/theta)/rnd)
   KX <- matern.kernel(RX, nu=nu)
   
-  RXX <- sqrt(distance(t(a)/theta))
+  RXX <- sqrt(distance(t(a)/theta)/rnd)
   KXX <- matern.kernel(RXX, nu=nu)
   
   mup2 <- drop(mu.hat + KX %*% Ki %*% (y - mu.hat))
-  tau2hat <- drop(t(y - mu.hat) %*% Ki %*% (y - mu.hat) / n)
-  Sigmap2 <- pmax(0,diag(tau2hat*(KXX - KX %*% Ki %*% t(KX))))
+  if(sig2.fg){
+    tau2hat <- drop(t(y - mu.hat) %*% Ki %*% (y - mu.hat) / n)
+    Sigmap2 <- pmax(0,diag(tau2hat*(KXX - KX %*% Ki %*% t(KX))))
+  }else{
+    Sigmap2 <- NULL
+  }
+
   
   return(list(mu=mup2, sig2=Sigmap2))
 }
