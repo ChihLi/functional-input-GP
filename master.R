@@ -6,6 +6,8 @@ source("FIGP_l.R")              # FIGP with linear kernel
 source("FIGP_nl.R")             # FIGP with non-linear kernel
 source("matern.kernel.R")       # matern kernel computation
 source("loocv.R")               # LOOCV for FIGP
+source("KL.expan.R")            # KL expansion for comparison
+source("GP.R")                  # conventional GP
 
 ##### Section 4 #####
 cat("Section 4...\n")
@@ -39,7 +41,7 @@ theta <- 1
 s2 <- 1
 nu <- c(0.5,3,10)
 K1 <- kernel.linear(nu=nu[1], theta=theta)
-K2 <- kernel.linear(nu=nu[1], theta=theta) 
+K2 <- kernel.linear(nu=nu[2], theta=theta) 
 K3 <- kernel.linear(nu=nu[3], theta=theta) 
 
 cat("   reproducing Figure 2...\n")
@@ -86,7 +88,7 @@ gamma <- 1
 s2 <- 1
 nu <- c(0.5,2,10)
 K1 <- kernel.nonlinear(nu=nu[1], theta=gamma)
-K2 <- kernel.nonlinear(nu=nu[1], theta=gamma) 
+K2 <- kernel.nonlinear(nu=nu[2], theta=gamma) 
 K3 <- kernel.nonlinear(nu=nu[3], theta=gamma) 
 
 par(mfrow=c(3,3), mar = c(4, 4, 2, 1))
@@ -139,7 +141,7 @@ n <- length(G)
 y1 <- rep(0, n) 
 for(i in 1:n) y1[i] <- hcubature(G[[i]], lower=c(0, 0),upper=c(1,1))$integral
 
-# y2: integrate g^2 function from 0 to 1
+# y2: integrate g^3 function from 0 to 1
 G.cubic <- list(function(x) (x[1]+x[2])^3,
                  function(x) (x[1]^2)^3,
                  function(x) (x[2]^2)^3,
@@ -180,20 +182,13 @@ for(i in 1:3){
   loocv.nl[i] <- loocv(gpnl.fit[[i]])
 }
 
-# for comparison: basis function approach
+# for comparison: basis expansion approach
 set.seed(1)
-# M <- 5
-# KL.theta <- optim.theta(G=G,M=M,d=2)
-# KL.out <- KL.expan(M=M, d=2, KL.theta, nu=2.5, rnd=1e3)
-# B <- extraEigV(KL.out, G, M)
-
 KL.out <- KL.expan(d=2, G, fraction=0.99, rnd=1e3)
-print(KL.out$FoVE[KL.out$M])
 B <- KL.out$B
   
-KL.fit <- vector("list", 3)
-#for(i in 1:3) KL.fit[[i]] <- mlegp(X = B, Z = Y[,i], nugget = eps)
-for(i in 1:3) KL.fit[[i]] <- sepGP(B, Y[,i], nu=2.5, g=eps)
+KL.fit <- vector("list", KL.out$M)
+for(i in 1:KL.out$M) KL.fit[[i]] <- sepGP(B, Y[,i], nu=2.5, g=eps)
   
 # run predictions
 set.seed(1)
@@ -239,7 +234,6 @@ for(i in 1:3){
     for(iii in 1:n.new) y.true[iii] <- hcubature(g.int[[iii]], lower=c(0, 0),upper=c(1,1))$integral
     
     ynew <- pred.FIGP_l(gp.fit[[i]], gnew)
-    # mape.linear.i[ii] <- mean(abs((y.true - ynew$mu)/y.true))
     mse.linear.i[ii] <- mean((y.true - ynew$mu)^2)
     lb <- ynew$mu - qnorm(0.975)*sqrt(ynew$sig2)
     ub <- ynew$mu + qnorm(0.975)*sqrt(ynew$sig2)
@@ -247,23 +241,14 @@ for(i in 1:3){
     score.linear.i[ii] <- mean(score(y.true, ynew$mu, ynew$sig2))
     
     ynew <- pred.FIGP_nl(gpnl.fit[[i]], gnew)
-    # mape.nonlinear.i[ii] <- mean(abs((y.true - ynew$mu)/y.true))
     mse.nonlinear.i[ii] <- mean((y.true - ynew$mu)^2)
     lb <- ynew$mu - qnorm(0.975)*sqrt(ynew$sig2)
     ub <- ynew$mu + qnorm(0.975)*sqrt(ynew$sig2)
     cvr.nonlinear.i[ii] <- mean(y.true > lb & y.true < ub)
     score.nonlinear.i[ii] <- mean(score(y.true, ynew$mu, ynew$sig2))
     
-    # B.new <- extraEigV(KL.out, gnew, M)
     B.new <- KL.Bnew(KL.out, gnew)
-    # ynew <- predict(KL.fit[[i]], B.new, se.fit = TRUE)
-    # mape.kl.i[ii] <- mean(abs((y.true - ynew$fit)/y.true))
-    # lb <- ynew$fit - qnorm(0.975)*ynew$se.fit
-    # ub <- ynew$fit + qnorm(0.975)*ynew$se.fit
-    # cvr.kl.i[ii] <- mean(y.true > lb & y.true < ub)
-    # score.kl.i[ii] <- mean(score(y.true, ynew$fit, ynew$se.fit^2))
     ynew <- pred.sepGP(KL.fit[[i]], B.new)
-    # mape.kl.i[ii] <- mean(abs((y.true - ynew$mu)/y.true))
     mse.kl.i[ii] <- mean((y.true - ynew$mu)^2)
     lb <- ynew$mu - qnorm(0.975)*sqrt(ynew$sig2)
     ub <- ynew$mu + qnorm(0.975)*sqrt(ynew$sig2)
@@ -294,6 +279,7 @@ select.mse <- diag(rbind(mse.linear, mse.nonlinear)[select.idx,])
 select.cvr <- diag(rbind(cvr.linear, cvr.nonlinear)[select.idx,])
 select.score <- diag(rbind(score.linear, score.nonlinear)[select.idx,])
 
+cat("   reproducing Table 3...\n")
 out <- rbind(format(select.mse,digits=4),
              format(mse.kl,digits=4),
              format(select.cvr,digits=4),
@@ -402,12 +388,6 @@ pred.recon <- scale(pred.recon, center = FALSE, scale = 1/pca.out$scale)
 pred.recon <- scale(pred.recon, scale = FALSE, center = -1 * pca.out$center)
 
 # basis function method for comparison
-# M <- 5
-# KL.theta <- optim.theta(G=G,M=M,d=2)
-# KL.out <- KL.expan(M=M, d=2, KL.theta, nu=2.5, rnd=1e3)
-# B <- extraEigV(KL.out, G, M)
-# B.new <- extraEigV(KL.out, gnew, M)
-
 KL.out <- KL.expan(d=2, G, fraction=0.99, rnd=1e3)
 B <- KL.out$B
 B.new <- KL.Bnew(KL.out, gnew)
@@ -415,8 +395,6 @@ B.new <- KL.Bnew(KL.out, gnew)
 ynew <-  matrix(0,ncol=n.comp,nrow=n.new)
 KL.fit <- vector("list", 3)
 for(i in 1:n.comp){
-  # KL.fit[[i]] <- mlegp(X = B, Z = pca.out$x[,i])
-  # pred.out <- predict(KL.fit[[i]], B.new)
   KL.fit[[i]] <- sepGP(B, pca.out$x[,i], nu=2.5, g=eps)
   pred.out <- pred.sepGP(KL.fit[[i]], B.new)
   ynew[,i] <- drop(pred.out$mu)
@@ -436,26 +414,6 @@ gnew.true[,1] <- c(Re(gnew.dat))
 
 # plot the result
 cat("   reproducing Figure 6...\n")
-# pdf("realcase_prediction.pdf", width = 7, height = 2)
-# 
-# par(mfrow=c(1,4))
-# par(mar = c(1, 1, 2, 1))
-# 
-# mape <- rep(0, n.new)
-# for(i in 1:n.new){
-#   image(matrix(gnew.true[,i],32,32), zlim=c(0.064,0.11),yaxt="n",xaxt="n",
-#         col=heat.colors(12, rev = FALSE),
-#         main=ifelse(i==1, "g(x1,x2)=1-sin(x2)", "g(x1,x2)=1"))
-#   contour(matrix(gnew.true[,i],32,32), add = TRUE, nlevels = 5)
-#   
-#   image(matrix(pred.recon[i,], 32, 32), zlim=c(0.064,0.11),yaxt="n",xaxt="n",
-#         col=heat.colors(12, rev = FALSE),
-#         main="prediction")
-#   contour(matrix(pred.recon[i,], 32, 32), add = TRUE, nlevels = 5)
-#   mape[i] <- mean(abs((gnew.true[,i]-pred.recon[i,])/gnew.true[,i]))*100
-# }
-# dev.off()
-
 pdf("realcase_prediction.pdf", width = 6, height = 2.3)
 
 par(mfrow=c(1,3))
@@ -482,7 +440,6 @@ for(i in 1:n.new){
 }
 dev.off()
 cat("   computing MSE...\n")
-# print(mape)
 
 out <- cbind(mse, mse.kl)
 colnames(out) <- c("FIGP", "Basis")
