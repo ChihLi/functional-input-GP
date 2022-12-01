@@ -6,17 +6,6 @@ KL.expan <- function(d, G, fraction=0.99, rnd=1e3){
   for(i in 1:n) Y[,i] <- apply(X,1,G[[i]])
   Y.center <- apply(Y, 1, mean)
   Y <- Y - Y.center
-  # R <- matrix(0,rnd,rnd)
-  # for(i in 1:rnd) {
-  #   for(j in i:rnd){
-  #     R[i,j] <- R[j,i] <- sum(Y[i,] * Y[j,])
-  #   }
-  # }
-  # eig.out <- eigen(R)
-  # 
-  # varphi <- eig.out$vectors[,1:M]
-  # betai <- t(Y) %*% varphi
-  # print(betai)
   
   R <- matrix(0,n,n)
   for(i in 1:n) {
@@ -47,42 +36,3 @@ KL.Bnew <- function(KL.ls, gnew){
   
   return(t(Y) %*% KL.ls$basis)
 }
-
-# KL.expan <- function(M=10, d, theta, nu=2.5, rnd=1e3){
-#  
-#   X <- sobol(rnd, d)
-#   R <- sqrt(distance(t(t(X)/theta)))
-#   Phi <- matern.kernel(R, nu=nu) 
-#   
-#   eig.out <- eigen(Phi)
-#   
-#   return(list(basis = eig.out$vector[,1:M] * matrix(sqrt(eig.out$value[1:M]),nrow=rnd,ncol=M,byrow=TRUE),
-#               rndX = X))
-# }
-# 
-# optim.theta <- function(G, M, d, nu=2.5, rnd=1e2){
-#   
-#   theta.fun <- function(theta){
-#     KL.ls <- KL.expan(M, d, theta, nu, rnd=rnd)
-#     recon.error <- 0
-#     for(i in 1:length(G)){
-#       lm.fit <- lm(apply(KL.ls$rndX,1,G[[i]]) ~ KL.ls$basis - 1)
-#       lm.fit <- summary(lm.fit)
-#       recon.error <- recon.error + mean(lm.fit$residuals^2)
-#     }
-#     return(recon.error)
-#   }
-#   opt.out <- optim(c(1,1), theta.fun, method="L-BFGS-B", lower=1e-6, upper=100)
-# 
-#   return(opt.out$par)
-# }
-# 
-# extraEigV <- function(KL.ls, G, M){
-#   eigval.mx <- matrix(0,nrow=length(G),ncol=M)
-#   for(i in 1:length(G)) eigval.mx[i,] <- coef(lm(apply(KL.ls$rndX,1,G[[i]]) ~ KL.ls$basis - 1))
-#   for(i in 1:length(G)) {
-#     lm.fit <- lm(apply(KL.ls$rndX,1,G[[i]]) ~ KL.ls$basis - 1)
-#     print(mean(lm.fit$residuals^2))
-#   }
-#   return(eigval.mx)
-# }
