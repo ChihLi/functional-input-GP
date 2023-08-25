@@ -6,7 +6,7 @@ December 1, 2022
 
 This instruction aims to reproduce the results in the paper
 “*Functional-Input Gaussian Processes with Applications to Inverse
-Scattering Problems*” by Sung et al. ([https://arxiv.org/abs/2201.01682](https://arxiv.org/abs/2201.01682)).  Hereafter, functional-Input
+Scattering Problems*” by Sung et al. ([link](http://www3.stat.sinica.edu.tw/preprint/SS-2022-0180_Preprint.pdf)).  Hereafter, functional-Input
 Gaussian Process is abbreviated by *FIGP*.
 
 The following results are reproduced in this file
